@@ -64,7 +64,7 @@ describe('AsyncEmitter', () => {
 	it('emits error on error', async () => {
 		const emitter = new AsyncEmitter();
 		let onErrorCalled = false;
-		emitter.on(AsyncEmitter.Error, (err) => {
+		emitter.onError((err) => {
 			onErrorCalled = true;
 		});
 

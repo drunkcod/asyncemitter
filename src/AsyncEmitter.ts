@@ -9,6 +9,7 @@ function isPromiseLike(x: unknown): x is PromiseLike<unknown> {
 type Args<T> = T extends Listener ? Parameters<T> : [T];
 
 type ListenerItem = { eventName: PropertyKey; fn: Function };
+type BoundListenerItem = ListenerItem & { bound: Function };
 
 type ErrorListener = Listener<{ listener: ListenerItem; reason: unknown }>;
 
@@ -18,7 +19,7 @@ export class AsyncEmitter<T = any> {
 		console.error(`Error during [${String(error.listener.eventName)}] event.`, error.reason);
 	};
 
-	readonly #listeners = new Map<PropertyKey, ListenerItem[]>();
+	readonly #listeners = new Map<PropertyKey, BoundListenerItem[]>();
 
 	onUnhandledError = AsyncEmitter.onUnhandledError;
 
@@ -30,7 +31,7 @@ export class AsyncEmitter<T = any> {
 			found = [];
 			this.#listeners.set(eventName, found);
 		}
-		found.push({ eventName, fn: listener });
+		found.push({ eventName, fn: listener, bound: listener.bind(this) });
 	}
 
 	public onError(onError: ErrorListener) {
@@ -38,11 +39,11 @@ export class AsyncEmitter<T = any> {
 	}
 
 	public emitAsync<K extends keyof T>(eventName: K, ...args: Args<T[K]>): Promise<void> {
-		return this.#emitAsync(eventName, args);
+		return this.#emit(eventName, args);
 	}
 
 	//fast path for the common case of no errors.
-	async #emitAsync(eventName: PropertyKey, args: any[]): Promise<void> {
+	async #emit(eventName: PropertyKey, args: any[]): Promise<void> {
 		const listeners = this.#listeners.get(eventName);
 		if (!listeners) return;
 
@@ -51,12 +52,12 @@ export class AsyncEmitter<T = any> {
 		let i = 0;
 		try {
 			for (; i != listeners.length; ++i) {
-				ps[i] = listeners[i].fn.apply(this, args);
+				ps[i] = listeners[i].bound(...args);
 				thenables ||= isPromiseLike(ps[i]);
 			}
 		} catch (err) {
 			await this.#emitError(listeners[i], err);
-			if (++i != listeners.length) thenables ||= await this.#emitAsyncSafe(listeners, args, i, ps);
+			if (++i != listeners.length) thenables ||= await this.#emitWithRecovery(listeners, args, i, ps);
 		}
 
 		if (thenables) await this.#handlePromises(listeners, ps);
@@ -67,11 +68,11 @@ export class AsyncEmitter<T = any> {
 		const listeners = this.#listeners.get(AsyncEmitter.Error);
 		if (!listeners) return this.onUnhandledError(error);
 
-		for (const { fn } of listeners) {
+		for (const x of listeners) {
 			try {
-				await Promise.resolve(fn.call(this, error));
+				await Promise.resolve(x.bound(error));
 			} catch (error) {
-				this.onUnhandledError({ listener: { eventName: AsyncEmitter.Error, fn }, reason: error });
+				this.onUnhandledError({ listener: x, reason: error });
 			}
 		}
 	}
@@ -86,8 +87,8 @@ export class AsyncEmitter<T = any> {
 		}
 	}
 
-	async #emitAsyncSafe(
-		listeners: readonly ListenerItem[],
+	async #emitWithRecovery(
+		listeners: readonly BoundListenerItem[],
 		args: readonly any[],
 		from: number,
 		ps: any[],
@@ -95,7 +96,7 @@ export class AsyncEmitter<T = any> {
 		let thenables = false;
 		for (var i = from; i != listeners.length; ++i) {
 			try {
-				ps[i] = listeners[i].fn.apply(this, args);
+				ps[i] = listeners[i].bound(...args);
 				thenables ||= isPromiseLike(ps[i]);
 			} catch (err) {
 				await this.#emitError(listeners[i], err);

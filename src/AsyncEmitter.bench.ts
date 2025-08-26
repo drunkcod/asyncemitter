@@ -29,4 +29,27 @@ add('emit async listeners', async (t) => {
 	t.end(t.count);
 });
 
+function functionToCall(...args: number[]) {
+	// a simple function that does some work
+	return args.reduce((a, b) => a + b, 0);
+}
+
+const args = [1, 2, 3, 4, 5];
+
+add('function.apply', (t) => {
+	t.start();
+	for (var i = 0; i !== t.count; ++i) {
+		functionToCall.apply(null, args);
+	}
+	t.end(t.count);
+});
+
+add('spread operator', (t) => {
+	t.start();
+	for (var i = 0; i !== t.count; ++i) {
+		functionToCall(...args);
+	}
+	t.end(t.count);
+});
+
 suite.run();
