@@ -1,6 +1,6 @@
 {
 	"name": "@drunkcod/asyncemitter",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "AsyncEmitter is a async/awaitable EventEmitter. Intended for when you want to handle errors or need to join to the main flow like in GCP CloudRun.",
 	"license": "MIT",
 	"author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
