@@ -13,6 +13,7 @@ type ListenerItem = { eventName: PropertyKey; fn: Function };
 type ErrorListener = Listener<{ listener: ListenerItem; reason: unknown }>;
 
 export class AsyncEmitter<T = any> {
+	private static readonly Error: unique symbol = Symbol.for('AsyncEmitter.Error');
 	static onUnhandledError: ErrorListener = function onUnhandledError(error) {
 		console.error(`Error during [${String(error.listener.eventName)}] event.`, error.reason);
 	};
@@ -21,7 +22,7 @@ export class AsyncEmitter<T = any> {
 
 	onUnhandledError = AsyncEmitter.onUnhandledError;
 
-	public on(eventName: 'error', onError: ErrorListener): void;
+	public on(eventName: typeof AsyncEmitter.Error, onError: ErrorListener): void;
 	public on<K extends keyof T>(eventName: K, listener: (...args: Args<T[K]>) => void | Promise<void>): void;
 	public on(eventName: PropertyKey, listener: (...args: any[]) => void | Promise<void>) {
 		let found = this.#listeners.get(eventName);
@@ -30,6 +31,10 @@ export class AsyncEmitter<T = any> {
 			this.#listeners.set(eventName, found);
 		}
 		found.push({ eventName, fn: listener });
+	}
+
+	public onError(onError: ErrorListener) {
+		return this.on(AsyncEmitter.Error, onError);
 	}
 
 	public emitAsync<K extends keyof T>(eventName: K, ...args: Args<T[K]>): Promise<void> {
@@ -59,14 +64,14 @@ export class AsyncEmitter<T = any> {
 
 	async #emitError(listener: ListenerItem, err: unknown) {
 		const error = { listener, reason: err };
-		const listeners = this.#listeners.get('error');
+		const listeners = this.#listeners.get(AsyncEmitter.Error);
 		if (!listeners) return this.onUnhandledError(error);
 
 		for (const { fn } of listeners) {
 			try {
 				await Promise.resolve(fn.call(this, error));
 			} catch (error) {
-				this.onUnhandledError({ listener: { eventName: 'error', fn }, reason: error });
+				this.onUnhandledError({ listener: { eventName: AsyncEmitter.Error, fn }, reason: error });
 			}
 		}
 	}

@@ -64,7 +64,7 @@ describe('AsyncEmitter', () => {
 	it('emits error on error', async () => {
 		const emitter = new AsyncEmitter();
 		let onErrorCalled = false;
-		emitter.on('error', (err) => {
+		emitter.on(AsyncEmitter.Error, (err) => {
 			onErrorCalled = true;
 		});
 
@@ -80,7 +80,7 @@ describe('AsyncEmitter', () => {
 	it('emits error for each of multiple errors', async () => {
 		const emitter = new AsyncEmitter();
 		const errors: unknown[] = [];
-		emitter.on('error', ({ listener, reason }) => {
+		emitter.onError(({ listener, reason }) => {
 			errors.push(reason);
 		});
 
@@ -103,7 +103,7 @@ describe('AsyncEmitter', () => {
 	it('emits error for each rejected promise', async () => {
 		const emitter = new AsyncEmitter();
 		const errors: unknown[] = [];
-		emitter.on('error', ({ listener, reason }) => {
+		emitter.onError(({ listener, reason }) => {
 			errors.push(reason);
 		});
 
@@ -126,7 +126,7 @@ describe('AsyncEmitter', () => {
 			errorError = error;
 		};
 
-		emitter.on('error', (err) => {
+		emitter.onError((err) => {
 			throw new Error('error Error');
 		});
 
@@ -149,5 +149,10 @@ describe('AsyncEmitter', () => {
 		await emitter.emitAsync('event');
 
 		expect(errorError).not.toBeNull();
+	});
+
+	it('inherits global onError handler unless otherwise specified', async () => {
+		const emitter = new AsyncEmitter();
+		expect(emitter.onUnhandledError).toEqual(AsyncEmitter.onUnhandledError);
 	});
 });
