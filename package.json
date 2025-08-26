@@ -1,0 +1,47 @@
+{
+	"name": "@drunkcod/asyncemitter",
+	"version": "0.0.1",
+	"description": "AsyncEmitter is a async/awaitable EventEmitter. Intended for when you want to handle errors or need to join to the main flow like in GCP CloudRun.",
+	"license": "MIT",
+	"author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+	"type": "module",
+	"main": "lib/index.js",
+	"types": "lib/index.d.ts",
+	"files": [
+		"lib/**/*"
+	],
+	"exports": {
+		".": {
+			"import": {
+				"default": "./lib/index.js",
+				"types": "./lib/index.d.ts"
+			},
+			"require": {
+				"default": "./lib/cjs/index.js",
+				"types": "./lib/cjs/index.d.ts"
+			}
+		}
+	},
+	"scripts": {
+		"clean": "rimraf lib",
+		"compile": "tsc",
+		"cjs:compile": "tsc --module commonjs --outdir lib/cjs",
+		"cjs:fixup": "echo '{\"type\": \"commonjs\"}' > lib/cjs/package.json",
+		"build": "npm-run-all clean -p compile cjs:compile -s cjs:fixup --silent",
+		"test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js",
+		"bench": "node --allow-natives-syntax --import @drunkcod/ts-node-esm src/AsyncEmitter.bench.ts"
+	},
+	"devDependencies": {
+		"@drunkcod/ts-jest-esm": "^0.0.2",
+		"@drunkcod/ts-node-esm": "^0.0.3",
+		"@types/jest": "^30.0.0",
+		"bench-node": "^0.10.0",
+		"jest": "^30.0.5",
+		"npm-run-all": "^4.1.5",
+		"prettier": "^3.6.2",
+		"rimraf": "^6.0.1",
+		"ts-jest": "^29.4.1",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.9.2"
+	}
+}
