@@ -80,8 +80,8 @@ describe('AsyncEmitter', () => {
 	it('emits error for each of multiple errors', async () => {
 		const emitter = new AsyncEmitter();
 		const errors: unknown[] = [];
-		emitter.on('error', (err) => {
-			errors.push(err);
+		emitter.on('error', ({ listener, reason }) => {
+			errors.push(reason);
 		});
 
 		const firstError = new Error(),
@@ -103,8 +103,8 @@ describe('AsyncEmitter', () => {
 	it('emits error for each rejected promise', async () => {
 		const emitter = new AsyncEmitter();
 		const errors: unknown[] = [];
-		emitter.on('error', (err) => {
-			errors.push(err);
+		emitter.on('error', ({ listener, reason }) => {
+			errors.push(reason);
 		});
 
 		const firstError = new Error(),
@@ -117,5 +117,37 @@ describe('AsyncEmitter', () => {
 
 		expect(errors).toContainEqual(firstError);
 		expect(errors).toContainEqual(secondError);
+	});
+
+	it('handles error during error', async () => {
+		let errorError: unknown = null;
+		const emitter = new AsyncEmitter();
+		emitter.onUnhandledError = (error) => {
+			errorError = error;
+		};
+
+		emitter.on('error', (err) => {
+			throw new Error('error Error');
+		});
+
+		emitter.on('event', () => Promise.reject(new Error('event Error')));
+
+		await emitter.emitAsync('event');
+
+		expect(errorError).not.toBeNull();
+	});
+
+	it('reports unhandled errors', async () => {
+		let errorError: unknown = null;
+		const emitter = new AsyncEmitter();
+		emitter.onUnhandledError = (error) => {
+			errorError = error;
+		};
+
+		emitter.on('event', () => Promise.reject(new Error('event Error')));
+
+		await emitter.emitAsync('event');
+
+		expect(errorError).not.toBeNull();
 	});
 });

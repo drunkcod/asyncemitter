@@ -8,10 +8,20 @@ function isPromiseLike(x: unknown): x is PromiseLike<unknown> {
 
 type Args<T> = T extends Listener ? Parameters<T> : [T];
 
-export class AsyncEmitter<T = any> {
-	readonly #listeners = new Map<PropertyKey, Function[]>();
+type ListenerItem = { eventName: PropertyKey; fn: Function };
 
-	public on(eventName: 'error', onError: Listener<unknown>): void;
+type ErrorListener = Listener<{ listener: ListenerItem; reason: unknown }>;
+
+export class AsyncEmitter<T = any> {
+	static onUnhandledError: ErrorListener = function onUnhandledError(error) {
+		console.error(`Error during [${String(error.listener.eventName)}] event.`, error.reason);
+	};
+
+	readonly #listeners = new Map<PropertyKey, ListenerItem[]>();
+
+	onUnhandledError = AsyncEmitter.onUnhandledError;
+
+	public on(eventName: 'error', onError: ErrorListener): void;
 	public on<K extends keyof T>(eventName: K, listener: (...args: Args<T[K]>) => void | Promise<void>): void;
 	public on(eventName: PropertyKey, listener: (...args: any[]) => void | Promise<void>) {
 		let found = this.#listeners.get(eventName);
@@ -19,7 +29,7 @@ export class AsyncEmitter<T = any> {
 			found = [];
 			this.#listeners.set(eventName, found);
 		}
-		found.push(listener);
+		found.push({ eventName, fn: listener });
 	}
 
 	public emitAsync<K extends keyof T>(eventName: K, ...args: Args<T[K]>): Promise<void> {
@@ -36,39 +46,54 @@ export class AsyncEmitter<T = any> {
 		let i = 0;
 		try {
 			for (; i != listeners.length; ++i) {
-				ps[i] = listeners[i].apply(this, args);
+				ps[i] = listeners[i].fn.apply(this, args);
 				thenables ||= isPromiseLike(ps[i]);
 			}
 		} catch (err) {
-			await this.#emitError(err);
-			if (++i != listeners.length) thenables ||= await this.#emitAsyncSafe(args, i, listeners, ps);
+			await this.#emitError(listeners[i], err);
+			if (++i != listeners.length) thenables ||= await this.#emitAsyncSafe(listeners, args, i, ps);
 		}
 
-		if (thenables) await this.#handlePromises(ps);
+		if (thenables) await this.#handlePromises(listeners, ps);
 	}
 
-	#emitError(err: unknown) {
-		return this.#emitAsync('error', [err]);
-	}
+	async #emitError(listener: ListenerItem, err: unknown) {
+		const error = { listener, reason: err };
+		const listeners = this.#listeners.get('error');
+		if (!listeners) return this.onUnhandledError(error);
 
-	async #handlePromises(ps: any[]) {
-		for (var x of ps) {
+		for (const { fn } of listeners) {
 			try {
-				await Promise.resolve(x);
-			} catch (err) {
-				await this.#emitError(err);
+				await Promise.resolve(fn.call(this, error));
+			} catch (error) {
+				this.onUnhandledError({ listener: { eventName: 'error', fn }, reason: error });
 			}
 		}
 	}
 
-	async #emitAsyncSafe(args: any[], from: number, listeners: Function[], ps: any[]): Promise<boolean> {
+	async #handlePromises(listeners: readonly ListenerItem[], ps: any[]) {
+		for (var i = 0; i != ps.length; ++i) {
+			try {
+				await Promise.resolve(ps[i]);
+			} catch (err) {
+				await this.#emitError(listeners[i], err);
+			}
+		}
+	}
+
+	async #emitAsyncSafe(
+		listeners: readonly ListenerItem[],
+		args: readonly any[],
+		from: number,
+		ps: any[],
+	): Promise<boolean> {
 		let thenables = false;
 		for (var i = from; i != listeners.length; ++i) {
 			try {
-				ps[i] = listeners[i].apply(this, args);
+				ps[i] = listeners[i].fn.apply(this, args);
 				thenables ||= isPromiseLike(ps[i]);
 			} catch (err) {
-				await this.#emitError(err);
+				await this.#emitError(listeners[i], err);
 			}
 		}
 		return thenables;
