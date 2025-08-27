@@ -12,6 +12,7 @@ type ListenerItem = { eventName: PropertyKey; fn: Function };
 type BoundListenerItem = ListenerItem & { bound: Function };
 
 type ErrorListener = Listener<{ listener: ListenerItem; reason: unknown }>;
+type EventListener<T> = (...args: Args<T>) => unknown;
 
 export class AsyncEmitter<T = any> {
 	private static readonly Error: unique symbol = Symbol.for('AsyncEmitter.Error');
@@ -23,9 +24,15 @@ export class AsyncEmitter<T = any> {
 
 	onUnhandledError = AsyncEmitter.onUnhandledError;
 
-	public on(eventName: typeof AsyncEmitter.Error, onError: ErrorListener): void;
-	public on<K extends keyof T>(eventName: K, listener: (...args: Args<T[K]>) => void | Promise<void>): void;
-	public on(eventName: PropertyKey, listener: (...args: any[]) => void | Promise<void>) {
+	public on<K extends keyof T>(eventName: K, listener: EventListener<T[K]>): void {
+		this.#addListener(eventName, listener);
+	}
+
+	public onError(onError: ErrorListener) {
+		return this.#addListener(AsyncEmitter.Error, onError);
+	}
+
+	#addListener(eventName: PropertyKey, listener: (...args: any[]) => unknown) {
 		let found = this.#listeners.get(eventName);
 		if (!found) {
 			found = [];
@@ -34,11 +41,7 @@ export class AsyncEmitter<T = any> {
 		found.push({ eventName, fn: listener, bound: listener.bind(this) });
 	}
 
-	public onError(onError: ErrorListener) {
-		return this.on(AsyncEmitter.Error, onError);
-	}
-
-	public emitAsync<K extends keyof T>(eventName: K, ...args: Args<T[K]>): Promise<void> {
+	public emit<K extends keyof T>(eventName: K, ...args: Args<T[K]>): Promise<void> {
 		return this.#emit(eventName, args);
 	}
 

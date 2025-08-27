@@ -6,7 +6,7 @@ describe('AsyncEmitter', () => {
 		const emitter = new AsyncEmitter<{ test(x: string, y: string): void }>();
 		const listener = jest.fn((x: string, y: string) => {});
 		emitter.on('test', listener);
-		await emitter.emitAsync('test', 'arg1', 'arg2');
+		await emitter.emit('test', 'arg1', 'arg2');
 		expect(listener).toHaveBeenCalledWith('arg1', 'arg2');
 	});
 
@@ -16,7 +16,7 @@ describe('AsyncEmitter', () => {
 		const listener2 = jest.fn((arg: string) => {});
 		emitter.on('test', listener1);
 		emitter.on('test', listener2);
-		await emitter.emitAsync('test', 'arg');
+		await emitter.emit('test', 'arg');
 		expect(listener1).toHaveBeenCalledWith('arg');
 		expect(listener2).toHaveBeenCalledWith('arg');
 	});
@@ -25,13 +25,13 @@ describe('AsyncEmitter', () => {
 		const emitter = new AsyncEmitter<{ test(): void; 'other-event'(): void }>();
 		const listener = jest.fn(() => {});
 		emitter.on('test', listener);
-		await emitter.emitAsync('other-event');
+		await emitter.emit('other-event');
 		expect(listener).not.toHaveBeenCalled();
 	});
 
 	it('should handle events with no listeners', async () => {
 		const emitter = new AsyncEmitter();
-		await expect(emitter.emitAsync('test')).resolves.not.toThrow();
+		await expect(emitter.emit('test')).resolves.not.toThrow();
 	});
 
 	it('should maintain the correct "this" context in listeners', async () => {
@@ -41,7 +41,7 @@ describe('AsyncEmitter', () => {
 			context = this;
 		};
 		emitter.on('test', listener);
-		await emitter.emitAsync('test');
+		await emitter.emit('test');
 		expect(context).toBe(emitter);
 	});
 
@@ -57,7 +57,7 @@ describe('AsyncEmitter', () => {
 			});
 		};
 		emitter.on('test', asyncListener);
-		await emitter.emitAsync('test');
+		await emitter.emit('test');
 		expect(asyncListenerCalled).toBe(true);
 	});
 
@@ -72,7 +72,7 @@ describe('AsyncEmitter', () => {
 			throw new Error();
 		});
 
-		await emitter.emitAsync('hello');
+		await emitter.emit('hello');
 
 		expect(onErrorCalled).toBeTruthy();
 	});
@@ -94,7 +94,7 @@ describe('AsyncEmitter', () => {
 			throw secondError;
 		});
 
-		await emitter.emitAsync('hello');
+		await emitter.emit('hello');
 
 		expect(errors).toContainEqual(firstError);
 		expect(errors).toContainEqual(secondError);
@@ -113,7 +113,7 @@ describe('AsyncEmitter', () => {
 
 		emitter.on('hello', () => Promise.reject(secondError));
 
-		await emitter.emitAsync('hello');
+		await emitter.emit('hello');
 
 		expect(errors).toContainEqual(firstError);
 		expect(errors).toContainEqual(secondError);
@@ -132,7 +132,7 @@ describe('AsyncEmitter', () => {
 
 		emitter.on('event', () => Promise.reject(new Error('event Error')));
 
-		await emitter.emitAsync('event');
+		await emitter.emit('event');
 
 		expect(errorError).not.toBeNull();
 	});
@@ -146,7 +146,7 @@ describe('AsyncEmitter', () => {
 
 		emitter.on('event', () => Promise.reject(new Error('event Error')));
 
-		await emitter.emitAsync('event');
+		await emitter.emit('event');
 
 		expect(errorError).not.toBeNull();
 	});
@@ -154,5 +154,12 @@ describe('AsyncEmitter', () => {
 	it('inherits global onError handler unless otherwise specified', async () => {
 		const emitter = new AsyncEmitter();
 		expect(emitter.onUnhandledError).toEqual(AsyncEmitter.onUnhandledError);
+	});
+
+	it('event listeners can return anything', async () => {
+		const emitter = new AsyncEmitter<{ foo(input: string): void }>();
+
+		emitter.on('foo', () => Promise.resolve(42));
+		emitter.on('foo', () => 42);
 	});
 });
